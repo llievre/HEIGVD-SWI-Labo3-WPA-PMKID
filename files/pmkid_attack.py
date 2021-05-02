@@ -55,12 +55,12 @@ def printStatus(passPhrase, ssid, APmac, Clientmac, pmkid):
     print ("PMKID: ", b2a_hex(pmkid),"\n")
 
 # Read capture file -- it contains beacon, authentication, associacion, handshake and data
-wpa=rdpcap("PMKID_handshake.pcap") 
+wpa=rdpcap("PMKID_handshake.pcap")
 
 #trouve le beacon avec le SSID
 packetBroadcast = getBeacon(wpa)
 
-# Important parameters for key derivation - most of them can be obtained from the pcap file
+#Parametres utilise pour calculer les PMKID
 ssid        = packetBroadcast.info #on recupere le ssid dans le beacon
 APmac       = a2b_hex(packetBroadcast.addr2.replace(":", "")) #on recupere la mac de l'ap dans le handshake 1
 packetHS1   = getFirstHandshake(wpa, APmac) #on va chercher le handshake 1
@@ -74,7 +74,6 @@ printStatus("", ssid, APmac, Clientmac, pmkid)
 #on ouvre le fichier de mots
 fileWords = open("wordslist.txt", "r")
 
-
 print("Computing...")
 print ("=============================")
 
@@ -87,7 +86,7 @@ for word in fileWords.readlines():
     #calculate 4096 rounds to obtain the 256 bit (32 oct) PMK
     pmk = pbkdf2(hashlib.sha1, passPhrase, ssid, 4096, 32)
 
-    #compute a pmkid
+    #compute le pmkid
     wordPMKID = hmac.new(pmk, b"PMK Name" + APmac + Clientmac,hashlib.sha1)
 
     #on vérifie si les deux pmkid sont égaux
