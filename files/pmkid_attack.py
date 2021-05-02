@@ -41,19 +41,23 @@ def getBeacon(pkts):
     Trouve le beacon qui contient un SSID d'une liste de paquet
     """
     for pkt in pkts:
-        if pkt.haslayer(Dot11) and pkt.type == 0 and pkt.subtype == 8:
+        if pkt.type == 0 and pkt.subtype == 8:
+                ssid = pkt.info.decode()
+                #on vise un ssid qui s'appelle Sunrise vu qu'on sait
+                #que leur AP sont vulnérables et qu'il y a 2
+                #réseaux nommés ainsi dans la capture
+                #if "Sunrise" in ssid:
                 return pkt
 
-def getFirstHandshake(pkts, apMAC, clientMAC):
+def getFirstHandshake(pkts, apMAC):
     """
     Trouve le 1er Handshake d'une liste de paquets
     à l'aide de la mac de l'AP et du client
     """
     for pkt in pkts:
-        if pkt.haslayer(Dot11) and pkt.type == 2 and pkt.subtype == 8:
-            cleanAddr1 = pkt.addr1.replace(":", "")
-            cleanAddr2 = pkt.addr2.replace(":", "")
-            if a2b_hex(cleanAddr1) == apMAC and a2b_hex(cleanAddr2) == clientMAC:
+        if pkt.haslayer(EAPOL) and pkt.type == 2 and pkt.subtype == 8:
+            pktSrc = a2b_hex(pkt.addr2.replace(":", ""))
+            if pkt.FCfield == "from-DS" and pktSrc == apMAC:
                 return pkt
 
 # Read capture file -- it contains beacon, authentication, associacion, handshake and data
@@ -67,10 +71,9 @@ passPhrase  = "actuelle"
 A           = "Pairwise key expansion" #this string is used in the pseudo-random function
 ssid        = packetBroadcast.info.decode()
 APmac       = a2b_hex(packetBroadcast.addr2.replace(":", "")) #on recupere la mac de l'ap dans le handshake 1
-Clientmac   = a2b_hex(packetBroadcast.addr1.replace(":", "")) #on recupere la mac du client dans le handshake 1
-
-Handshake1 = getFirstHandshake(wpa, APmac, Clientmac)
-pmkid = ""
+packetHS1   = getFirstHandshake(wpa, APmac)
+Clientmac   = a2b_hex(packetHS1.addr1.replace(":", "")) #on recupere la mac du client dans le handshake 1
+pmkid = raw(packetHS1)[-20:-4]
 
 print ("\n\nValues used to derivate keys")
 print ("============================")
@@ -78,25 +81,4 @@ print ("Passphrase: ",passPhrase,"\n")
 print ("SSID: ",ssid,"\n")
 print ("AP Mac: ",b2a_hex(APmac),"\n")
 print ("CLient Mac: ",b2a_hex(Clientmac),"\n")
-print ("PMKID: ", pmkid,"\n")
-
-#calculate 4096 rounds to obtain the 256 bit (32 oct) PMK
-passPhrase = str.encode(passPhrase)
-ssid = str.encode(ssid)
-pmk = pbkdf2(hashlib.sha1,passPhrase, ssid, 4096, 32)
-
-#expand pmk to obtain PTK
-ptk = customPRF512(pmk,str.encode(A),B)
-
-#calculate MIC over EAPOL payload (Michael)- The ptk is, in fact, KCK|KEK|TK|MICK
-mic = hmac.new(ptk[0:16],data,hashlib.sha1)
-
-print ("\nResults of the key expansion")
-print ("=============================")
-print ("PMK:\t\t",pmk.hex(),"\n")
-print ("PTK:\t\t",ptk.hex(),"\n")
-print ("KCK:\t\t",ptk[0:16].hex(),"\n")
-print ("KEK:\t\t",ptk[16:32].hex(),"\n")
-print ("TK:\t\t",ptk[32:48].hex(),"\n")
-print ("MICK:\t\t",ptk[48:64].hex(),"\n")
-print ("MIC:\t\t",mic.hexdigest(),"\n")
+print ("PMKID: ", b2a_hex(pmkid),"\n")
